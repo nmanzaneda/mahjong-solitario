@@ -1,0 +1,20 @@
+{
+  "id": "/mahjong-solitario/",
+  "name": "Mahjong Solitario",
+  "short_name": "Mahjong",
+  "description": "Mahjong Solitario simple, sin publicidad. Tres niveles, pistas, deshacer y partidas que siempre tienen solución.",
+  "lang": "es-AR",
+  "start_url": "/mahjong-solitario/",
+  "scope": "/mahjong-solitario/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1f5038",
+  "theme_color": "#1f5038",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

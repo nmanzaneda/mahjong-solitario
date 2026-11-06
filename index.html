@@ -7,6 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Mahjong Solitario</title>
+<meta name="description" content="Mahjong Solitario simple y sin publicidad.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <style>
 :root{--felt:#2f7150;--felt2:#1c4a33;--ink:#1d2433;--e:3px;--r:6px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -366,6 +370,7 @@ try{new ResizeObserver(relayout).observe(wrap);}catch(e){}
 if(!loadGame()){newGame(opt.level||'clasico');
   let seen=false;try{seen=localStorage.getItem('mahjongMama_help')==='1';localStorage.setItem('mahjongMama_help','1');}catch(e){}
   if(!seen)help();}
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
 window.__mj={get S(){return S},get T(){return T},isFree,assign,LEVELS,newGame};
 })();
 </script>
