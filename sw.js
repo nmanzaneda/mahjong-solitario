@@ -1,6 +1,6 @@
 // Service worker: guarda el juego en el teléfono para que funcione sin internet.
 // Cuando cambies el juego, subí el número de versión para que se actualice.
-const CACHE = 'mahjong-v3';
+const CACHE = 'mahjong-v4';
 const FILES = [
   './',
   './index.html',
@@ -28,7 +28,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then(res => {
         if (res.ok && new URL(e.request.url).origin === location.origin) {
           const copy = res.clone();
