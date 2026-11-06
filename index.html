@@ -57,16 +57,13 @@ button.big .ic{display:block;font-size:24px;line-height:1.15}
   .card button{font-size:22px;padding:16px}
   #toast{font-size:22px;bottom:130px}
 }
-.tile{position:absolute;border-radius:var(--r);cursor:pointer;
-  background:linear-gradient(150deg,#fffdf7 0%,#f3ead5 100%);
-  box-shadow:calc(var(--e)*.5) calc(var(--e)*.5) 0 #dccc9f, var(--e) var(--e) 0 #a99260,
-             calc(var(--e) + 1px) calc(var(--e) + 2px) calc(var(--e)*1.3) rgba(0,0,0,.4);
-  transition:opacity .22s, transform .22s}
-.tile svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.tile.blocked::after{content:"";position:absolute;inset:0;border-radius:var(--r);background:rgba(45,35,10,.26);pointer-events:none}
-.tile.sel{background:linear-gradient(150deg,#fff3a6,#ffd85a);outline:3px solid #e08a00;outline-offset:-1px}
-.tile.hint{animation:pulse .5s ease-in-out 4 alternate}
-@keyframes pulse{from{background:#fffdf7}to{background:#9be6ff;outline:3px solid #0a8fc4}}
+.tile{position:absolute;cursor:pointer;transition:opacity .22s, transform .22s}
+.tile img{display:block;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none}
+.tile.blocked img{filter:brightness(.74) saturate(.85)}
+.tile.sel img{filter:sepia(.6) saturate(2.8) hue-rotate(-12deg) brightness(1.05)}
+.tile.sel{outline:3px solid #e08a00;outline-offset:-2px;border-radius:var(--r)}
+.tile.hint img{animation:pulse .5s ease-in-out 4 alternate}
+@keyframes pulse{from{filter:none}to{filter:sepia(1) saturate(4) hue-rotate(160deg) brightness(1.05)}}
 .tile.shake{animation:shake .32s}
 @keyframes shake{0%,100%{translate:0}25%{translate:-4px}75%{translate:4px}}
 .tile.vanish{opacity:0;transform:scale(.6)}
@@ -105,7 +102,7 @@ button.big .ic{display:block;font-size:24px;line-height:1.15}
 <script>
 (()=>{
 'use strict';
-const VERSION=4;
+const VERSION=5;
 const $=id=>document.getElementById(id);
 const board=$('board'), wrap=$('wrap');
 const rnd=n=>Math.floor(Math.random()*n);
@@ -138,7 +135,7 @@ function makePairs(n){
 const C={b:'#2257c7',g:'#17884a',r:'#c8252d',k:'#1d2433'};
 const CJK='font-family="Noto Serif CJK SC,Noto Sans CJK SC,Noto Sans SC,Source Han Sans SC,PingFang SC,Hiragino Sans GB,Microsoft YaHei,SimSun,serif" font-weight="700" text-anchor="middle"';
 const LAT='font-family="Arial,Helvetica,sans-serif" font-weight="700" text-anchor="middle"';
-const svg=(inner,bg)=>`<svg viewBox="0 0 60 80" preserveAspectRatio="none">${bg?`<rect x="3" y="3" width="54" height="74" rx="6" fill="${bg}"/>`:''}${inner}</svg>`;
+const svg=(inner,bg)=>`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="80" viewBox="0 0 60 80" preserveAspectRatio="none">${bg?`<rect x="3" y="3" width="54" height="74" rx="6" fill="${bg}"/>`:''}${inner}</svg>`;
 const dot=(x,y,r,c)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${C[c]}"/><circle cx="${x}" cy="${y}" r="${(r*.62).toFixed(2)}" fill="#fffaf0"/><circle cx="${x}" cy="${y}" r="${(r*.34).toFixed(2)}" fill="${C[c]}"/>`;
 const DOTS={
  2:[10,[[30,22,'g'],[30,58,'b']]],
@@ -183,6 +180,36 @@ FACES.dG=svg(`<text x="30" y="56" font-size="40" fill="${C.g}" ${CJK}>發</text>
 FACES.dW=svg(`<rect x="12" y="13" width="36" height="54" rx="4" fill="none" stroke="${C.b}" stroke-width="4"/><rect x="18" y="19" width="24" height="42" rx="2" fill="none" stroke="${C.b}" stroke-width="2"/>`);
 ['🌸','🌺','🌼','🌷'].forEach((e,i)=>FACES['f'+(i+1)]=svg(`<text x="30" y="47" font-size="30" text-anchor="middle">${e}</text><text x="30" y="70" font-size="10" fill="#a0306a" ${LAT}>FLOR</text>`,'#fde4ee'));
 ['🌱','☀️','🍂','❄️'].forEach((e,i)=>FACES['s'+(i+1)]=svg(`<text x="30" y="47" font-size="30" text-anchor="middle">${e}</text><text x="30" y="70" font-size="8.5" fill="#2c5f8a" ${LAT}>ESTACIÓN</text>`,'#e1effb'));
+
+/* ---------- Fichas como imágenes PNG (el modo oscuro forzado no las toca) ---------- */
+const FACE_IMG={};
+function loadFaceImages(){
+  return Promise.all(Object.keys(FACES).map(k=>new Promise(res=>{
+    const im=new Image();im.onload=()=>{FACE_IMG[k]=im;res();};im.onerror=()=>res();
+    im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(FACES[k]);
+  })));
+}
+let SPR={},sprKey='';
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function buildSprites(w,h,e){
+  const dpr=Math.min(3,window.devicePixelRatio||1);
+  const W=Math.max(8,Math.round(w*dpr)),H=Math.max(8,Math.round(h*dpr)),E=Math.max(2,Math.round(e*dpr));
+  const key=W+'x'+H;if(key===sprKey)return false;sprKey=key;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;const c=cv.getContext('2d');
+  const fw=W-E,fh=H-E,r=Math.round(fw*.13);
+  for(const k of Object.keys(FACES)){
+    c.clearRect(0,0,W,H);
+    c.fillStyle='#a99260';rr(c,E,E,fw,fh,r);c.fill();
+    c.fillStyle='#dccc9f';rr(c,E/2,E/2,fw,fh,r);c.fill();
+    const g=c.createLinearGradient(0,0,fw,fh);g.addColorStop(0,'#fffdf7');g.addColorStop(1,'#f3ead5');
+    c.fillStyle=g;rr(c,0,0,fw,fh,r);c.fill();
+    c.strokeStyle='rgba(120,100,60,.35)';c.lineWidth=Math.max(1,dpr*.6);rr(c,.5,.5,fw-1,fh-1,r);c.stroke();
+    if(FACE_IMG[k])c.drawImage(FACE_IMG[k],0,0,fw,fh);
+    SPR[k]=cv.toDataURL('image/png');
+  }
+  return true;
+}
+const setFace=(el,f)=>{el.firstChild.src=SPR[f]||'';};
 
 /* ---------- Geometría y reglas ---------- */
 let T=[], els=[];
@@ -247,7 +274,7 @@ function render(){
   board.innerHTML='';els=[];
   T.forEach((t,i)=>{
     const el=document.createElement('div');el.className='tile';el.dataset.i=i;
-    el.innerHTML=FACES[S.faces[i]];board.appendChild(el);els.push(el);
+    el.appendChild(document.createElement('img'));el.firstChild.alt='';board.appendChild(el);els.push(el);
   });
   update();layout();
 }
@@ -261,11 +288,12 @@ function layout(){
   const h=w*R,dz=w*DZ,e=Math.max(2,w*.075);
   const bw=cols*w+maxZ*dz,bh=rows*h+maxZ*dz;
   const ox=(W0-bw)/2+maxZ*dz,oy=(H0-bh)/2+maxZ*dz;
+  if(buildSprites(w,h,e)||!els[0].firstChild.src)els.forEach((el,i)=>setFace(el,S.faces[i]));
   board.style.setProperty('--e',e.toFixed(1)+'px');
   board.style.setProperty('--r',(w*.13).toFixed(1)+'px');
   T.forEach((t,i)=>{const s=els[i].style;
     s.left=(ox+(t.x-minX)*w/2-t.z*dz)+'px';s.top=(oy+(t.y-minY)*h/2-t.z*dz)+'px';
-    s.width=(w-e)+'px';s.height=(h-e)+'px';s.zIndex=t.z*1000+t.y*32+t.x;});
+    s.width=w+'px';s.height=h+'px';s.zIndex=t.z*1000+t.y*32+t.x;});
 }
 function freePairs(){
   const byG={};
@@ -330,7 +358,7 @@ function afterMove({rem,mv}){
       modal(`<div class="big-emoji">🎉</div><h2 style="text-align:center">¡Felicitaciones, ganaste!</h2><p style="text-align:center">Partidas ganadas: <b>${opt.wins}</b></p>`,
         [{label:'Jugar otra vez',cls:'pri',fn:()=>newGame(opt.level)},{label:'Elegir nivel',fn:askNew}]);},400);
     return;}
-  if(mv===0)setTimeout(stuck,450);
+  if(mv===0)setTimeout(()=>{if(S.alive.some(Boolean)&&countMoves()===0)stuck();},450);
 }
 function stuck(){
   modal(`<div class="big-emoji">🤔</div><h2>No quedan parejas libres</h2><p>Podés mezclar las fichas que quedan, deshacer la última jugada o empezar de nuevo.</p>`,
@@ -339,7 +367,7 @@ function stuck(){
 function undo(){
   const h=S.hist.pop();if(!h){toast('No hay nada para deshacer');return;}
   if(h.t==='p'){S.alive[h.a]=S.alive[h.b]=true;}
-  else{S.faces=h.prev;els.forEach((el,i)=>el.innerHTML=FACES[S.faces[i]]);}
+  else{S.faces=h.prev;els.forEach((el,i)=>setFace(el,S.faces[i]));}
   sel=-1;save();update();tone(400,.08);
 }
 function hint(){
@@ -357,7 +385,7 @@ function doShuffle(){
   if(!res){toast('No se pueden mezclar estas fichas. Probá Deshacer.');return;}
   S.hist.push({t:'s',prev:S.faces.slice()});
   for(const i of idxs)S.faces[i]=res[i];
-  idxs.forEach(i=>{els[i].innerHTML=FACES[S.faces[i]];});
+  idxs.forEach(i=>setFace(els[i],S.faces[i]));
   sel=-1;save();update();tone(600,.08);tone(700,.08,.08);toast('¡Fichas mezcladas!');
 }
 function askNew(){
@@ -388,10 +416,12 @@ $('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();})
 let rT=0;const relayout=()=>{clearTimeout(rT);rT=setTimeout(layout,60);};window.addEventListener('resize',relayout);
 try{new ResizeObserver(relayout).observe(wrap);}catch(e){}
 
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+loadFaceImages().then(()=>{
 if(!loadGame()){newGame(opt.level||'clasico');
   let seen=false;try{seen=localStorage.getItem('mahjongMama_help')==='1';localStorage.setItem('mahjongMama_help','1');}catch(e){}
   if(!seen)help();}
-if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
+});
 window.__mj={get S(){return S},get T(){return T},isFree,assign,LEVELS,newGame};
 })();
 </script>

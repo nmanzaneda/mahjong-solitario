@@ -1,6 +1,6 @@
 // Service worker: guarda el juego en el teléfono para que funcione sin internet.
 // Cuando cambies el juego, subí el número de versión para que se actualice.
-const CACHE = 'mahjong-v4';
+const CACHE = 'mahjong-v5';
 const FILES = [
   './',
   './index.html',
