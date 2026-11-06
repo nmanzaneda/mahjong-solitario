@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1f5038">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Mahjong Solitario</title>
+<style>
+:root{--felt:#2f7150;--felt2:#1c4a33;--ink:#1d2433;--e:3px;--r:6px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:radial-gradient(ellipse at center,var(--felt) 0%,var(--felt2) 100%);color:#fff;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#app{display:grid;height:100vh;height:100dvh;grid-template-rows:auto 1fr auto;grid-template-areas:"h" "b" "f"}
+header{grid-area:h;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px;background:rgba(0,0,0,.2)}
+.title{font-weight:800;font-size:19px;letter-spacing:.3px}
+.stats{font-size:17px;text-align:right;line-height:1.25}
+.stats b{font-size:19px}
+#wrap{grid-area:b;position:relative;overflow:hidden}
+#board{position:absolute;inset:0}
+footer{grid-area:f;display:flex;gap:6px;padding:8px;justify-content:center;background:rgba(0,0,0,.2)}
+button.big{flex:1;min-width:0;max-width:150px;font-size:14px;padding:8px 2px;border:none;border-radius:12px;
+  background:#f6edd6;color:var(--ink);font-weight:700;box-shadow:0 3px 0 #b6a273;font-family:inherit;cursor:pointer}
+button.big:active{transform:translateY(2px);box-shadow:0 1px 0 #b6a273}
+button.big .ic{display:block;font-size:24px;line-height:1.15}
+@media (orientation:landscape) and (max-height:540px){
+  #app{grid-template-columns:1fr 118px;grid-template-rows:auto 1fr;grid-template-areas:"b h" "b f"}
+  header{flex-direction:column;align-items:stretch;text-align:center;padding:6px}
+  .stats{text-align:center}
+  footer{flex-direction:column;justify-content:flex-start;padding:6px}
+  button.big{max-width:none;flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:14px}
+  button.big .ic{display:inline;font-size:20px}
+}
+.tile{position:absolute;border-radius:var(--r);cursor:pointer;
+  background:linear-gradient(150deg,#fffdf7 0%,#f3ead5 100%);
+  box-shadow:calc(var(--e)*.5) calc(var(--e)*.5) 0 #dccc9f, var(--e) var(--e) 0 #a99260,
+             calc(var(--e) + 1px) calc(var(--e) + 2px) calc(var(--e)*1.3) rgba(0,0,0,.4);
+  transition:opacity .22s, transform .22s}
+.tile svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.tile.blocked::after{content:"";position:absolute;inset:0;border-radius:var(--r);background:rgba(45,35,10,.26);pointer-events:none}
+.tile.sel{background:linear-gradient(150deg,#fff3a6,#ffd85a);outline:3px solid #e08a00;outline-offset:-1px}
+.tile.hint{animation:pulse .5s ease-in-out 4 alternate}
+@keyframes pulse{from{background:#fffdf7}to{background:#9be6ff;outline:3px solid #0a8fc4}}
+.tile.shake{animation:shake .32s}
+@keyframes shake{0%,100%{translate:0}25%{translate:-4px}75%{translate:4px}}
+.tile.vanish{opacity:0;transform:scale(.6)}
+.tile.gone{display:none}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9000;padding:16px}
+#modal.hidden{display:none}
+.card{background:#fffaf0;color:var(--ink);border-radius:18px;padding:20px;max-width:420px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.card h2{margin:0 0 10px;font-size:24px}
+.card p,.card li{font-size:18px;line-height:1.45}
+.card ul{padding-left:20px;margin:6px 0 12px}
+.card .btns{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.card button{font-size:19px;padding:13px;border-radius:12px;border:none;font-weight:700;font-family:inherit;cursor:pointer;background:#e9dfc6;color:var(--ink)}
+.card button.pri{background:#2f7150;color:#fff}
+.card button.warn{background:#f3d27a}
+.big-emoji{font-size:56px;text-align:center;margin:4px 0}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(20,20,20,.88);color:#fff;
+  padding:12px 18px;border-radius:12px;font-size:17px;z-index:9500;opacity:0;transition:opacity .25s;pointer-events:none;text-align:center;max-width:90vw}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><div class="title">🀄 Mahjong</div><div class="stats" id="stats">Fichas: <b>0</b><br>Parejas posibles: <b>0</b></div></header>
+  <div id="wrap"><div id="board"></div></div>
+  <footer>
+    <button class="big" id="bNew"><span class="ic">🆕</span>Nuevo</button>
+    <button class="big" id="bHint"><span class="ic">💡</span>Pista</button>
+    <button class="big" id="bUndo"><span class="ic">↩️</span>Deshacer</button>
+    <button class="big" id="bShuf"><span class="ic">🔀</span>Mezclar</button>
+    <button class="big" id="bOpt"><span class="ic">⚙️</span>Opciones</button>
+  </footer>
+</div>
+<div id="modal" class="hidden"><div class="card" id="card"></div></div>
+<div id="toast"></div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const board=$('board'), wrap=$('wrap');
+const rnd=n=>Math.floor(Math.random()*n);
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* ---------- Niveles (posiciones en medias fichas: x*2, y*2, capa) ---------- */
+function grid(p,x0,x1,y0,y1,z){for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)p.push([x*2,y*2,z]);}
+const LEVELS={
+  facil:{name:'Fácil',build(){const p=[];grid(p,0,7,0,5,0);grid(p,1,6,1,4,1);return p;}},
+  medio:{name:'Mediano',build(){const p=[];grid(p,0,9,0,5,0);grid(p,1,8,1,4,1);grid(p,3,6,2,3,2);grid(p,4,5,2,3,3);return p;}},
+  clasico:{name:'Clásico (Tortuga)',build(){
+    const p=[];const row=(y,a,b)=>grid(p,a,b,y,y,0);
+    row(0,1,12);row(1,3,10);row(2,2,11);row(3,1,12);row(4,1,12);row(5,2,11);row(6,3,10);row(7,1,12);
+    p.push([0,7,0],[26,7,0],[28,7,0]);
+    grid(p,4,9,1,6,1);grid(p,5,8,2,5,2);grid(p,6,7,3,4,3);p.push([13,7,4]);return p;}}
+};
+
+/* ---------- Fichas ---------- */
+const BASE=[];for(const s of['c','b','m'])for(let n=1;n<=9;n++)BASE.push(s+n);
+BASE.push('wE','wS','wW','wN','dR','dG','dW');
+const group=f=>f[0]==='f'?'F':f[0]==='s'?'S':f;
+function makePairs(n){
+  const all=[];for(const f of BASE)all.push([f,f],[f,f]);
+  const fl=shuffle(['f1','f2','f3','f4']),se=shuffle(['s1','s2','s3','s4']);
+  all.push([fl[0],fl[1]],[fl[2],fl[3]],[se[0],se[1]],[se[2],se[3]]);
+  return shuffle(all).slice(0,n/2);
+}
+
+/* ---------- Dibujos SVG ---------- */
+const C={b:'#2257c7',g:'#17884a',r:'#c8252d',k:'#1d2433'};
+const CJK='font-family="Noto Serif CJK SC,Noto Sans CJK SC,Noto Sans SC,Source Han Sans SC,PingFang SC,Hiragino Sans GB,Microsoft YaHei,SimSun,serif" font-weight="700" text-anchor="middle"';
+const LAT='font-family="Arial,Helvetica,sans-serif" font-weight="700" text-anchor="middle"';
+const svg=(inner,bg)=>`<svg viewBox="0 0 60 80" preserveAspectRatio="none">${bg?`<rect x="3" y="3" width="54" height="74" rx="6" fill="${bg}"/>`:''}${inner}</svg>`;
+const dot=(x,y,r,c)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="${C[c]}"/><circle cx="${x}" cy="${y}" r="${(r*.62).toFixed(2)}" fill="#fffaf0"/><circle cx="${x}" cy="${y}" r="${(r*.34).toFixed(2)}" fill="${C[c]}"/>`;
+const DOTS={
+ 2:[10,[[30,22,'g'],[30,58,'b']]],
+ 3:[9.5,[[15,17,'b'],[30,40,'r'],[45,63,'g']]],
+ 4:[10,[[17,22,'b'],[43,22,'g'],[17,58,'g'],[43,58,'b']]],
+ 5:[9,[[15,18,'b'],[45,18,'g'],[30,40,'r'],[15,62,'g'],[45,62,'b']]],
+ 6:[8.5,[[19,16,'g'],[41,16,'g'],[19,40,'r'],[41,40,'r'],[19,64,'r'],[41,64,'r']]],
+ 7:[7.5,[[13,12,'g'],[30,21,'g'],[47,30,'g'],[19,50,'r'],[41,50,'r'],[19,68,'r'],[41,68,'r']]],
+ 8:[7.5,[[19,12,'b'],[41,12,'b'],[19,30,'b'],[41,30,'b'],[19,48,'b'],[41,48,'b'],[19,66,'b'],[41,66,'b']]],
+ 9:[8,[[13,15,'b'],[30,15,'b'],[47,15,'b'],[13,40,'r'],[30,40,'r'],[47,40,'r'],[13,65,'g'],[30,65,'g'],[47,65,'g']]]
+};
+function stick(x,y,c,w=8,h=24){
+  return `<rect x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" rx="${w/2}" fill="${C[c]}"/>`+
+    `<rect x="${x-w/2-1}" y="${y-1.3}" width="${w+2}" height="2.6" rx="1.3" fill="${C[c]}"/>`+
+    `<line x1="${x}" y1="${y-h/2+3}" x2="${x}" y2="${y+h/2-3}" stroke="#fff" stroke-opacity=".5" stroke-width="1.5"/>`;
+}
+const BAM={
+ 2:[[30,22,'g'],[30,58,'b']],
+ 3:[[30,22,'b'],[18,58,'g'],[42,58,'g']],
+ 4:[[18,22,'g'],[42,22,'b'],[18,58,'b'],[42,58,'g']],
+ 5:[[14,22,'g'],[46,22,'b'],[30,40,'r'],[14,58,'b'],[46,58,'g']],
+ 6:[[12,22,'g'],[30,22,'g'],[48,22,'g'],[12,58,'b'],[30,58,'b'],[48,58,'b']],
+ 7:[[30,14,'r'],[12,40,'g'],[30,40,'g'],[48,40,'g'],[12,66,'b'],[30,66,'b'],[48,66,'b']],
+ 8:[[9,22,'g'],[23,22,'g'],[37,22,'g'],[51,22,'g'],[9,58,'b'],[23,58,'b'],[37,58,'b'],[51,58,'b']],
+ 9:[[12,14,'g'],[30,14,'r'],[48,14,'b'],[12,40,'g'],[30,40,'r'],[48,40,'b'],[12,66,'g'],[30,66,'r'],[48,66,'b']]
+};
+const NUMS=['','一','二','三','四','五','六','七','八','九'];
+const corner=(t,c='#555')=>`<text x="9" y="14" font-size="11" fill="${c}" ${LAT}>${t}</text>`;
+const FACES={};
+for(let n=1;n<=9;n++){
+  FACES['c'+n]=svg(n===1?`<circle cx="30" cy="40" r="20" fill="${C.g}"/><circle cx="30" cy="40" r="15" fill="#fffaf0"/><circle cx="30" cy="40" r="11" fill="${C.r}"/><circle cx="30" cy="40" r="5" fill="#fffaf0"/>`
+    :DOTS[n][1].map(([x,y,c])=>dot(x,y,DOTS[n][0],c)).join(''));
+  FACES['b'+n]=svg(n===1?stick(30,40,'g',14,58)+`<circle cx="30" cy="40" r="6" fill="${C.r}"/>`
+    :BAM[n].map(([x,y,c])=>stick(x,y,c,n===8?7:8)).join(''));
+  FACES['m'+n]=svg(`<text x="30" y="36" font-size="27" fill="${C.b}" ${CJK}>${NUMS[n]}</text><text x="30" y="70" font-size="29" fill="${C.r}" ${CJK}>萬</text>`+corner(n,C.b));
+}
+[['wE','東','E'],['wS','南','S'],['wW','西','O'],['wN','北','N']].forEach(([k,ch,l])=>{
+  FACES[k]=svg(`<text x="30" y="56" font-size="40" fill="${C.k}" ${CJK}>${ch}</text>`+corner(l,C.k));
+});
+FACES.dR=svg(`<text x="30" y="58" font-size="46" fill="${C.r}" ${CJK}>中</text>`);
+FACES.dG=svg(`<text x="30" y="56" font-size="40" fill="${C.g}" ${CJK}>發</text>`);
+FACES.dW=svg(`<rect x="12" y="13" width="36" height="54" rx="4" fill="none" stroke="${C.b}" stroke-width="4"/><rect x="18" y="19" width="24" height="42" rx="2" fill="none" stroke="${C.b}" stroke-width="2"/>`);
+['🌸','🌺','🌼','🌷'].forEach((e,i)=>FACES['f'+(i+1)]=svg(`<text x="30" y="47" font-size="30" text-anchor="middle">${e}</text><text x="30" y="70" font-size="10" fill="#a0306a" ${LAT}>FLOR</text>`,'#fde4ee'));
+['🌱','☀️','🍂','❄️'].forEach((e,i)=>FACES['s'+(i+1)]=svg(`<text x="30" y="47" font-size="30" text-anchor="middle">${e}</text><text x="30" y="70" font-size="8.5" fill="#2c5f8a" ${LAT}>ESTACIÓN</text>`,'#e1effb'));
+
+/* ---------- Geometría y reglas ---------- */
+let T=[], els=[];
+function buildGeom(pos){
+  const t=pos.map(([x,y,z])=>({x,y,z,L:[],R:[],A:[]}));
+  for(let i=0;i<t.length;i++)for(let j=0;j<t.length;j++){
+    if(i===j)continue;const a=t[i],b=t[j],dx=b.x-a.x,dy=b.y-a.y;
+    if(b.z===a.z&&Math.abs(dy)<2){if(dx===-2)a.L.push(j);else if(dx===2)a.R.push(j);}
+    else if(b.z>a.z&&Math.abs(dx)<2&&Math.abs(dy)<2)a.A.push(j);
+  }
+  return t;
+}
+function isFree(i,alive){
+  const a=T[i];for(const j of a.A)if(alive[j])return false;
+  let l=true,r=true;for(const j of a.L)if(alive[j]){l=false;break;}
+  for(const j of a.R)if(alive[j]){r=false;break;}return l||r;
+}
+/* Reparte simulando una partida completa: siempre tiene solución */
+function assign(idxs,pairs){
+  for(let attempt=0;attempt<800;attempt++){
+    const alive=new Array(T.length).fill(false);idxs.forEach(i=>alive[i]=true);
+    const faces={};let ok=true;
+    for(const pr of shuffle(pairs.slice())){
+      const free=[];for(let i=0;i<T.length;i++)if(alive[i]&&isFree(i,alive))free.push(i);
+      if(free.length<2){ok=false;break;}
+      const a=free.splice(rnd(free.length),1)[0],b=free[rnd(free.length)];
+      faces[a]=pr[0];faces[b]=pr[1];alive[a]=alive[b]=false;
+    }
+    if(ok)return faces;
+  }
+  return null;
+}
+
+/* ---------- Estado ---------- */
+const KEY='mahjongMama_v1', OKEY='mahjongMama_opts';
+let S=null, sel=-1, busy=false;
+let opt={hl:true,sound:true,wins:0,level:'clasico'};
+try{Object.assign(opt,JSON.parse(localStorage.getItem(OKEY)||'{}'));}catch(e){}
+const saveOpt=()=>{try{localStorage.setItem(OKEY,JSON.stringify(opt));}catch(e){}};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};
+
+function newGame(level){
+  opt.level=level;saveOpt();
+  const portrait=wrap.clientHeight>wrap.clientWidth*1.05;
+  let pos=LEVELS[level].build();
+  if(portrait)pos=pos.map(([x,y,z])=>[y,x,z]);
+  T=buildGeom(pos);
+  let faces=null;
+  while(!faces)faces=assign(pos.map((_,i)=>i),makePairs(pos.length));
+  S={level,pos,faces:pos.map((_,i)=>faces[i]),alive:pos.map(()=>true),hist:[],won:false};
+  sel=-1;save();render();
+}
+function loadGame(){
+  try{const s=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(s&&s.pos&&s.faces&&s.alive&&!s.won&&s.alive.some(Boolean)){S=s;T=buildGeom(S.pos);render();return true;}
+  }catch(e){}
+  return false;
+}
+
+/* ---------- Dibujo del tablero ---------- */
+function render(){
+  board.innerHTML='';els=[];
+  T.forEach((t,i)=>{
+    const el=document.createElement('div');el.className='tile';el.dataset.i=i;
+    el.innerHTML=FACES[S.faces[i]];board.appendChild(el);els.push(el);
+  });
+  update();layout();
+}
+function layout(){
+  if(!T.length)return;
+  const W0=wrap.clientWidth,H0=wrap.clientHeight;
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9,maxZ=0;
+  for(const t of T){minX=Math.min(minX,t.x);maxX=Math.max(maxX,t.x);minY=Math.min(minY,t.y);maxY=Math.max(maxY,t.y);maxZ=Math.max(maxZ,t.z);}
+  const cols=(maxX-minX)/2+1,rows=(maxY-minY)/2+1,R=1.32,DZ=.1,pad=8;
+  const w=Math.min((W0-2*pad)/(cols+maxZ*DZ+.08),(H0-2*pad)/(rows*R+maxZ*DZ+.08));
+  const h=w*R,dz=w*DZ,e=Math.max(2,w*.075);
+  const bw=cols*w+maxZ*dz,bh=rows*h+maxZ*dz;
+  const ox=(W0-bw)/2+maxZ*dz,oy=(H0-bh)/2+maxZ*dz;
+  board.style.setProperty('--e',e.toFixed(1)+'px');
+  board.style.setProperty('--r',(w*.13).toFixed(1)+'px');
+  T.forEach((t,i)=>{const s=els[i].style;
+    s.left=(ox+(t.x-minX)*w/2-t.z*dz)+'px';s.top=(oy+(t.y-minY)*h/2-t.z*dz)+'px';
+    s.width=(w-e)+'px';s.height=(h-e)+'px';s.zIndex=t.z*1000+t.y*32+t.x;});
+}
+function freePairs(){
+  const byG={};
+  for(let i=0;i<T.length;i++)if(S.alive[i]&&isFree(i,S.alive))(byG[group(S.faces[i])]=byG[group(S.faces[i])]||[]).push(i);
+  return byG;
+}
+function countMoves(){let m=0;for(const g of Object.values(freePairs()))m+=g.length*(g.length-1)/2;return m;}
+function update(){
+  let rem=0;
+  T.forEach((t,i)=>{const el=els[i];
+    if(!S.alive[i]){if(!el.classList.contains('vanish'))el.classList.add('gone');el.classList.remove('sel','blocked');return;}
+    rem++;el.classList.remove('gone','vanish');
+    el.classList.toggle('blocked',opt.hl&&!isFree(i,S.alive));
+    el.classList.toggle('sel',i===sel);});
+  const mv=countMoves();
+  $('stats').innerHTML=`Fichas: <b>${rem}</b><br>Parejas posibles: <b>${mv}</b>`;
+  return {rem,mv};
+}
+
+/* ---------- Sonido ---------- */
+let ac=null;
+function tone(f,d=.12,delay=0){
+  if(!opt.sound)return;
+  try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();
+    const t0=ac.currentTime+delay,o=ac.createOscillator(),g=ac.createGain();
+    o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,t0);
+    g.gain.exponentialRampToValueAtTime(.18,t0+.01);g.gain.exponentialRampToValueAtTime(.0001,t0+d);
+    o.connect(g);g.connect(ac.destination);o.start(t0);o.stop(t0+d+.03);}catch(e){}
+}
+
+/* ---------- Mensajes ---------- */
+let toastT=0;
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2200);}
+function modal(html,buttons){
+  $('card').innerHTML=html+'<div class="btns"></div>';
+  const box=$('card').querySelector('.btns');
+  buttons.forEach(b=>{const el=document.createElement('button');el.textContent=b.label;if(b.cls)el.className=b.cls;
+    el.onclick=()=>{closeModal();b.fn&&b.fn();};box.appendChild(el);});
+  $('modal').classList.remove('hidden');
+}
+const closeModal=()=>$('modal').classList.add('hidden');
+
+/* ---------- Jugar ---------- */
+board.addEventListener('click',ev=>{
+  const el=ev.target.closest('.tile');if(!el||busy)return;
+  const i=+el.dataset.i;if(!S.alive[i])return;
+  if(!isFree(i,S.alive)){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');
+    toast('Esa ficha está trabada 🔒');return;}
+  if(sel===i){sel=-1;update();return;}
+  if(sel>=0&&group(S.faces[sel])===group(S.faces[i])){
+    const a=sel,b=i;sel=-1;S.alive[a]=S.alive[b]=false;S.hist.push({t:'p',a,b});
+    els[a].classList.add('vanish');els[b].classList.add('vanish');
+    tone(660,.1);tone(880,.14,.08);
+    setTimeout(()=>{if(!S.alive[a])els[a].classList.add('gone');if(!S.alive[b])els[b].classList.add('gone');},240);
+    save();const r=update();afterMove(r);return;
+  }
+  sel=i;tone(520,.05);update();
+});
+function afterMove({rem,mv}){
+  if(rem===0){S.won=true;opt.wins++;saveOpt();save();
+    setTimeout(()=>{tone(523,.15);tone(659,.15,.15);tone(784,.25,.3);
+      modal(`<div class="big-emoji">🎉</div><h2 style="text-align:center">¡Felicitaciones, ganaste!</h2><p style="text-align:center">Partidas ganadas: <b>${opt.wins}</b></p>`,
+        [{label:'Jugar otra vez',cls:'pri',fn:()=>newGame(opt.level)},{label:'Elegir nivel',fn:askNew}]);},400);
+    return;}
+  if(mv===0)setTimeout(stuck,450);
+}
+function stuck(){
+  modal(`<div class="big-emoji">🤔</div><h2>No quedan parejas libres</h2><p>Podés mezclar las fichas que quedan, deshacer la última jugada o empezar de nuevo.</p>`,
+    [{label:'🔀 Mezclar fichas',cls:'pri',fn:doShuffle},{label:'↩️ Deshacer',fn:undo},{label:'🆕 Juego nuevo',fn:askNew}]);
+}
+function undo(){
+  const h=S.hist.pop();if(!h){toast('No hay nada para deshacer');return;}
+  if(h.t==='p'){S.alive[h.a]=S.alive[h.b]=true;}
+  else{S.faces=h.prev;els.forEach((el,i)=>el.innerHTML=FACES[S.faces[i]]);}
+  sel=-1;save();update();tone(400,.08);
+}
+function hint(){
+  for(const g of Object.values(freePairs()))if(g.length>=2){
+    const [a,b]=g;[a,b].forEach(i=>{els[i].classList.remove('hint');void els[i].offsetWidth;els[i].classList.add('hint');});
+    setTimeout(()=>{els[a].classList.remove('hint');els[b].classList.remove('hint');},2100);return;}
+  stuck();
+}
+function doShuffle(){
+  const idxs=[],byG={};
+  S.alive.forEach((al,i)=>{if(al){idxs.push(i);(byG[group(S.faces[i])]=byG[group(S.faces[i])]||[]).push(S.faces[i]);}});
+  if(!idxs.length)return;
+  const pairs=[];for(const fs of Object.values(byG))for(let k=0;k+1<fs.length;k+=2)pairs.push([fs[k],fs[k+1]]);
+  const res=assign(idxs,pairs);
+  if(!res){toast('No se pueden mezclar estas fichas. Probá Deshacer.');return;}
+  S.hist.push({t:'s',prev:S.faces.slice()});
+  for(const i of idxs)S.faces[i]=res[i];
+  idxs.forEach(i=>{els[i].innerHTML=FACES[S.faces[i]];});
+  sel=-1;save();update();tone(600,.08);tone(700,.08,.08);toast('¡Fichas mezcladas!');
+}
+function askNew(){
+  modal(`<h2>Juego nuevo</h2><p>Elegí el nivel:</p>`,[
+    {label:'🙂 Fácil — 72 fichas',cls:opt.level==='facil'?'pri':'',fn:()=>newGame('facil')},
+    {label:'😊 Mediano — 104 fichas',cls:opt.level==='medio'?'pri':'',fn:()=>newGame('medio')},
+    {label:'🐢 Clásico — 144 fichas',cls:opt.level==='clasico'?'pri':'',fn:()=>newGame('clasico')},
+    {label:'Cancelar'}]);
+}
+function help(){
+  modal(`<h2>¿Cómo se juega?</h2><ul>
+  <li>Tocá <b>dos fichas iguales</b> para sacarlas del tablero.</li>
+  <li>Solo se pueden tocar las fichas <b>libres</b>: sin otra ficha encima, y libres del lado izquierdo <b>o</b> del derecho.</li>
+  <li>Las fichas trabadas se ven más oscuras.</li>
+  <li>Cualquier <b>FLOR</b> va con cualquier flor, y cualquier <b>ESTACIÓN</b> con cualquier estación.</li>
+  <li>Ganás cuando sacás todas las fichas. ¡Todos los juegos tienen solución!</li>
+  <li>Si te trabás: 💡 Pista, ↩️ Deshacer o 🔀 Mezclar.</li></ul>`,[{label:'¡Entendido!',cls:'pri'}]);
+}
+function options(){
+  modal(`<h2>Opciones</h2><p>Partidas ganadas: <b>${opt.wins}</b></p>`,[
+    {label:'Oscurecer fichas trabadas: '+(opt.hl?'SÍ':'NO'),fn:()=>{opt.hl=!opt.hl;saveOpt();update();options();}},
+    {label:'Sonido: '+(opt.sound?'SÍ 🔊':'NO 🔇'),fn:()=>{opt.sound=!opt.sound;saveOpt();options();}},
+    {label:'❓ Cómo se juega',fn:help},
+    {label:'Cerrar',cls:'pri'}]);
+}
+$('bNew').onclick=askNew;$('bHint').onclick=hint;$('bUndo').onclick=undo;$('bShuf').onclick=doShuffle;$('bOpt').onclick=options;
+$('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+let rT=0;const relayout=()=>{clearTimeout(rT);rT=setTimeout(layout,60);};window.addEventListener('resize',relayout);
+try{new ResizeObserver(relayout).observe(wrap);}catch(e){}
+
+if(!loadGame()){newGame(opt.level||'clasico');
+  let seen=false;try{seen=localStorage.getItem('mahjongMama_help')==='1';localStorage.setItem('mahjongMama_help','1');}catch(e){}
+  if(!seen)help();}
+window.__mj={get S(){return S},get T(){return T},isFree,assign,LEVELS,newGame};
+})();
+</script>
+</body>
+</html>
